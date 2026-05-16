@@ -4,7 +4,6 @@ import Plotly from 'plotly.js-dist-min';
 import { 
   LayoutDashboard, 
   Table as TableIcon, 
-  Sparkles, 
   Download, 
   Settings, 
   Cpu, 
@@ -18,18 +17,21 @@ import {
   ChevronLeft,
   Menu,
   X,
-  BrainCircuit,
   BarChart3,
   AlertTriangle,
   FileText,
   MessageSquare,
   Send,
-  Wand2,
   Layers,
   TrendingUp,
   GitMerge,
   Grid3X3 as PivotIcon,
-  Activity
+  Activity,
+  Lightbulb,
+  LineChart,
+  Database,
+  Filter,
+  Settings2
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { GoogleGenAI } from "@google/genai";
@@ -52,8 +54,8 @@ export default function App() {
   
   // Persistence: Load data from localStorage on mount
   useEffect(() => {
-    const savedData = localStorage.getItem('datapro_raw_data');
-    const savedCols = localStorage.getItem('datapro_columns');
+    const savedData = localStorage.getItem('system_raw_data');
+    const savedCols = localStorage.getItem('system_columns');
     if (savedData && savedCols) {
       try {
         setRawData(JSON.parse(savedData));
@@ -67,8 +69,8 @@ export default function App() {
   // Save data to localStorage whenever it changes
   useEffect(() => {
     if (rawData.length > 0) {
-      localStorage.setItem('datapro_raw_data', JSON.stringify(rawData));
-      localStorage.setItem('datapro_columns', JSON.stringify(columns));
+      localStorage.setItem('system_raw_data', JSON.stringify(rawData));
+      localStorage.setItem('system_columns', JSON.stringify(columns));
     }
   }, [rawData, columns]);
 
@@ -106,8 +108,8 @@ export default function App() {
   const [userQuery, setUserQuery] = useState('');
   const [isChatting, setIsChatting] = useState(false);
 
-  // Magic Clean state
-  const [isMagicCleaning, setIsMagicCleaning] = useState(false);
+  // Auto Clean state
+  const [isAutoCleaning, setIsAutoCleaning] = useState(false);
 
   // Filter state
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -200,12 +202,10 @@ export default function App() {
 
   const filteredData = useMemo(() => {
     return rawData.filter(row => {
-      // Search filter
       const matchesSearch = Object.values(row).some(val => 
         String(val).toLowerCase().includes(searchQuery.toLowerCase())
       );
       
-      // Column filters (Slicers)
       const matchesFilters = Object.entries(filters).every(([col, val]) => {
         if (!val) return true;
         return String(row[col]) === val;
@@ -226,9 +226,9 @@ export default function App() {
     setRawData([]);
     setColumns([]);
     setFilters({});
-    localStorage.removeItem('datapro_raw_data');
-    localStorage.removeItem('datapro_columns');
-    showToast("تم مسح جميع البيانات");
+    localStorage.removeItem('system_raw_data');
+    localStorage.removeItem('system_columns');
+    showToast("تم مسح جميع البيانات بنجاح");
   };
 
   const handleFilterChange = (col: string, val: string) => {
@@ -239,7 +239,7 @@ export default function App() {
   const getUniqueValues = (col: string) => {
     const values = Array.from(new Set(rawData.map(r => String(r[col]))))
       .filter(v => v !== 'null' && v !== 'undefined' && v !== '')
-      .slice(0, 50); // Limit to 50 unique values for performance
+      .slice(0, 50); 
     return values;
   };
 
@@ -301,17 +301,17 @@ export default function App() {
   const cleanDups = () => {
     const unique = Array.from(new Set(rawData.map(r => JSON.stringify(r)))).map((s: string) => JSON.parse(s));
     if (unique.length === rawData.length) {
-      showToast("لا توجد مكررات", 'error');
+      showToast("لا توجد سجلات مكررة", 'error');
       return;
     }
     setRawData(unique);
-    showToast("تم حذف المكررات بنجاح");
+    showToast("تمت إزالة السجلات المكررة بنجاح");
   };
 
   const cleanNulls = () => {
     const cleaned = rawData.filter(r => columns.every(c => r[c] !== null && r[c] !== undefined && r[c] !== ""));
     setRawData(cleaned);
-    showToast("تم تنظيف البيانات المفقودة");
+    showToast("تمت إزالة السجلات التي تحتوي على قيم مفقودة");
   };
 
   const fillValues = () => {
@@ -321,7 +321,7 @@ export default function App() {
     if (fillMethod === 'mean' || fillMethod === 'median') {
       const nums = rawData.map(r => r[fillCol]).filter(v => typeof v === 'number');
       if (nums.length === 0) {
-        showToast("العمود ليس رقمياً!", 'error');
+        showToast("لا يمكن تطبيق هذه العملية على بيانات غير رقمية", 'error');
         return;
       }
       if (fillMethod === 'mean') {
@@ -341,7 +341,7 @@ export default function App() {
       return r;
     });
     setRawData(newData);
-    showToast("تمت التعبئة بنجاح");
+    showToast("تمت تعبئة القيم المفقودة بنجاح");
   };
 
   const convertColumnType = () => {
@@ -351,12 +351,12 @@ export default function App() {
       [convertCol]: convertType === 'number' ? Number(r[convertCol]) : String(r[convertCol])
     }));
     setRawData(newData);
-    showToast(`تم تحويل ${convertCol} إلى ${convertType === 'number' ? 'رقم' : 'نص'}`);
+    showToast(`تم تحويل بنية العمود ${convertCol} بنجاح`);
   };
 
   const createFeature = () => {
     if (!newColName || !opCol1 || !opCol2) {
-      showToast("يرجى ملء جميع الحقول", 'error');
+      showToast("يرجى تحديد المعاملات واسم الميزة الجديدة", 'error');
       return;
     }
     const newData = rawData.map(r => {
@@ -372,23 +372,22 @@ export default function App() {
     });
     setRawData(newData);
     setColumns([...columns, newColName]);
-    showToast(`تم إنشاء العمود ${newColName} بنجاح`);
+    showToast(`تم اشتقاق الميزة ${newColName} بنجاح`);
   };
 
-  const generateAIInsights = async () => {
+  const generateInsights = async () => {
     if (rawData.length === 0) return;
     setIsAnalyzing(true);
     try {
-      // Sample data for AI (first 20 rows to avoid token limits)
       const sample = rawData.slice(0, 20);
       const dataSummary = JSON.stringify(sample);
       
-      const prompt = `أنت خبير في تحليل البيانات. إليك عينة من البيانات بصيغة JSON: ${dataSummary}. 
-      قم بتقديم ملخص تنفيذي احترافي باللغة العربية يتضمن:
-      1. نظرة عامة على البيانات.
-      2. أهم 3 ملاحظات أو أنماط (Patterns) تلاحظها.
-      3. توصية واحدة لتحسين جودة البيانات أو استغلالها.
-      اجعل الإجابة منسقة بنقاط واضحة ومختصرة.`;
+      const prompt = `أنت نظام خبير في تحليل البيانات الإحصائية. لديك العينة التالية بصيغة JSON: ${dataSummary}. 
+      قم بتقديم تقرير تنفيذي احترافي ورسمي باللغة العربية يتضمن:
+      1. ملخص هيكلي للبيانات.
+      2. أهم 3 ملاحظات إحصائية أو أنماط متكررة.
+      3. توصية واحدة لتحسين جودة البيانات أو توظيفها في تحسين الأداء.
+      تجنب العبارات الترحيبية واطرح النقاط بشكل مباشر ومختصر.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -396,46 +395,43 @@ export default function App() {
       });
 
       setInsights(response.text);
-      showToast("تم توليد التحليلات الذكية بنجاح");
+      showToast("تم توليد التقرير الاستكشافي بنجاح");
     } catch (error) {
       console.error(error);
-      showToast("فشل في توليد التحليلات", 'error');
+      showToast("تعذر توليد التقرير", 'error');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const magicClean = async () => {
+  const autoClean = async () => {
     if (rawData.length === 0) return;
-    setIsMagicCleaning(true);
+    setIsAutoCleaning(true);
     try {
       const sample = rawData.slice(0, 15);
-      const prompt = `أنت خبير في تنظيف البيانات. إليك عينة من البيانات: ${JSON.stringify(sample)}.
-      بناءً على هذه العينة، ما هي أفضل 3 خطوات لتنظيف هذه البيانات؟ 
-      أجب باللغة العربية. سأقوم بتطبيق هذه الخطوات برمجياً. 
-      إذا وجدت أعمدة غير مفيدة (مثل معرفات عشوائية)، اذكرها.`;
+      const prompt = `أنت نظام آلي مدمج لمعالجة جودة البيانات. هذه عينة: ${JSON.stringify(sample)}.
+      قدم بشكل احترافي أهم 3 إجراءات يجب اتخاذها لتنظيف هذه البيانات. 
+      أجب باللغة العربية بأسلوب تقني مباشر.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
       });
 
-      // For now, we just show the suggestions and apply basic cleaning
-      // In a real app, we could parse the AI response to apply specific logic
       cleanDups();
       cleanNulls();
       
-      showToast("تم تطبيق التنظيف السحري واقتراح التحسينات");
-      setInsights(response.text); // Reuse insights to show cleaning suggestions
+      showToast("تم الانتهاء من المعالجة الآلية وتطبيق التحسينات الأساسية");
+      setInsights(response.text); 
     } catch (error) {
       console.error(error);
-      showToast("فشل في التنظيف السحري", 'error');
+      showToast("تعذر تنفيذ المعالجة الآلية", 'error');
     } finally {
-      setIsMagicCleaning(false);
+      setIsAutoCleaning(false);
     }
   };
 
-  const askAIChat = async () => {
+  const executeDataQuery = async () => {
     if (!userQuery.trim() || rawData.length === 0) return;
     
     const newMessage = { role: 'user' as const, content: userQuery };
@@ -445,10 +441,10 @@ export default function App() {
 
     try {
       const sample = rawData.slice(0, 30);
-      const context = `البيانات المتاحة (عينة): ${JSON.stringify(sample)}. 
-      الأعمدة المتاحة: ${columns.join(', ')}.
-      إجمالي الصفوف: ${rawData.length}.
-      أجب على سؤال المستخدم باللغة العربية بناءً على هذه البيانات. إذا طلب المستخدم حسابات معينة، حاول تقديرها من العينة أو شرح الطريقة.`;
+      const context = `عينة من السجلات: ${JSON.stringify(sample)}. 
+      أسماء الأعمدة المتاحة: ${columns.join(', ')}.
+      عدد السجلات الإجمالي: ${rawData.length}.
+      كمساعد تحليل بيانات احترافي، أجب على الاستعلام الخاص بالمستخدم باللغة العربية، بناءً على المعطيات الإحصائية المتاحة.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -457,14 +453,14 @@ export default function App() {
             role: m.role === 'user' ? 'user' : 'model',
             parts: [{ text: m.content }]
           })),
-          { role: 'user', parts: [{ text: `${context}\n\nسؤال المستخدم: ${userQuery}` }] }
+          { role: 'user', parts: [{ text: `${context}\n\nالاستعلام: ${userQuery}` }] }
         ]
       });
       
       setChatMessages(prev => [...prev, { role: 'ai', content: response.text }]);
     } catch (error) {
       console.error(error);
-      showToast("فشل في التواصل مع الذكاء الاصطناعي", 'error');
+      showToast("تعذر معالجة الاستعلام", 'error');
     } finally {
       setIsChatting(false);
     }
@@ -590,14 +586,14 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "Cleaned_Data_DataPro.csv";
+    link.download = "Cleaned_Data.csv";
     link.click();
     URL.revokeObjectURL(url);
   };
 
   const exportPlot = () => {
     if (plotRef.current) {
-      Plotly.downloadImage(plotRef.current, { format: 'png', width: 1200, height: 800, filename: 'DataPro_Chart' });
+      Plotly.downloadImage(plotRef.current, { format: 'png', width: 1200, height: 800, filename: 'Analytics_Chart' });
     }
   };
 
@@ -605,7 +601,7 @@ export default function App() {
     const dashboard = document.getElementById('main-content');
     if (!dashboard) return;
 
-    showToast("جاري تجهيز تقرير PDF...");
+    showToast("جاري تحضير التقرير...");
     try {
       const canvas = await html2canvas(dashboard, {
         scale: 2,
@@ -619,11 +615,11 @@ export default function App() {
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save('DataPro_Report.pdf');
-      showToast("تم تحميل التقرير بنجاح");
+      pdf.save('Analytics_Report.pdf');
+      showToast("تم تصدير التقرير بنجاح");
     } catch (error) {
       console.error(error);
-      showToast("فشل في تصدير PDF", 'error');
+      showToast("تعذر تصدير التقرير", 'error');
     }
   };
 
@@ -647,7 +643,7 @@ export default function App() {
 
   const mergeDatasets = () => {
     if (!mergeKey1 || !mergeKey2 || secondData.length === 0) {
-      showToast("يرجى اختيار مفاتيح الربط ورفع الملف الثاني", 'error');
+      showToast("يرجى إتمام خطوات الربط الموضحة واختيار الملف", 'error');
       return;
     }
 
@@ -659,7 +655,7 @@ export default function App() {
     setRawData(merged);
     const allCols = Array.from(new Set([...columns, ...secondCols]));
     setColumns(allCols);
-    showToast("تم دمج البيانات بنجاح");
+    showToast("تم الانتهاء من دمج الجداول");
     setSecondData([]);
   };
 
@@ -667,7 +663,6 @@ export default function App() {
     if (!importUrl.trim()) return;
     setIsImporting(true);
     try {
-      // Basic support for Google Sheets CSV export URLs
       let finalUrl = importUrl;
       if (importUrl.includes('docs.google.com/spreadsheets') && !importUrl.includes('export?format=csv')) {
         const sheetId = importUrl.match(/\/d\/(.+?)\//)?.[1];
@@ -686,29 +681,28 @@ export default function App() {
         complete: (results) => {
           setRawData(results.data as DataRow[]);
           setColumns(results.meta.fields || []);
-          showToast("تم استيراد البيانات بنجاح");
+          showToast("تم جلب البيانات بنجاح");
           setImportUrl('');
         },
       });
     } catch (error) {
       console.error(error);
-      showToast("فشل في استيراد البيانات من الرابط", 'error');
+      showToast("تعذر جلب البيانات من المصدر", 'error');
     } finally {
       setIsImporting(false);
     }
   };
 
-  const generatePrediction = async () => {
+  const runPredictiveAnalysis = async () => {
     if (rawData.length === 0) return;
     setIsPredicting(true);
     try {
       const sample = rawData.slice(0, 50);
-      const prompt = `أنت خبير في التحليل التنبؤي. إليك عينة من البيانات: ${JSON.stringify(sample)}.
-      بناءً على هذه البيانات، قم بتقديم:
-      1. توقع للاتجاهات المستقبلية (Future Trends).
-      2. تحليل للمخاطر المحتملة (Risk Analysis).
-      3. اقتراحات لتحسين الأداء بناءً على الأنماط المكتشفة.
-      أجب باللغة العربية وبشكل احترافي.`;
+      const prompt = `أنت نظام تحليل تنبؤي متقدم. لديك العينة التالية: ${JSON.stringify(sample)}.
+      قم بتقديم تقرير احترافي باللغة العربية مقسم إلى:
+      1. تحليل للاتجاهات الإحصائية الواضحة بالبيانات.
+      2. التوقعات والمخاطر المحتملة المبنية على المعطيات.
+      3. مقترحات استراتيجية مبنية على الأرقام.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -716,10 +710,10 @@ export default function App() {
       });
 
       setPrediction(response.text);
-      showToast("تم توليد التوقعات بنجاح");
+      showToast("تم الانتهاء من التحليل التنبؤي");
     } catch (error) {
       console.error(error);
-      showToast("فشل في توليد التوقعات", 'error');
+      showToast("تعذر إتمام عملية التحليل", 'error');
     } finally {
       setIsPredicting(false);
     }
@@ -769,16 +763,14 @@ export default function App() {
     return { rows, cols, table };
   }, [rawData, pivotRow, pivotCol, pivotVal, pivotAgg]);
 
-  const runSmartMonitoring = async () => {
+  const runSystemMonitoring = async () => {
     if (rawData.length < 10) return;
     setIsMonitoring(true);
     try {
-      const sample = rawData.slice(-30); // Last 30 rows
-      const prompt = `أنت خبير في مراقبة البيانات (Data Monitoring). إليك آخر 30 سجلاً من البيانات: ${JSON.stringify(sample)}.
-      هل تلاحظ أي شذوذ (Anomaly) أو تغير مفاجئ في الأنماط؟ 
-      إذا وجدت شيئاً مريباً، اذكره باختصار شديد في جملة واحدة. 
-      إذا كانت البيانات طبيعية، قل "البيانات مستقرة".
-      أجب باللغة العربية.`;
+      const sample = rawData.slice(-30); 
+      const prompt = `أنت نظام لمراقبة جودة البيانات. إليك السجلات الأخيرة: ${JSON.stringify(sample)}.
+      تحقق من وجود أي شذوذ إحصائي واضح في الأرقام.
+      إذا كان هناك أي خلل واضح، اكتبه في جملة قصيرة واحدة، وإلا أجب بـ "مستقرة".`;
 
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -798,17 +790,18 @@ export default function App() {
 
   useEffect(() => {
     if (rawData.length > 20) {
-      const timer = setTimeout(runSmartMonitoring, 5000);
+      const timer = setTimeout(runSystemMonitoring, 5000);
       return () => clearTimeout(timer);
     }
   }, [rawData]);
 
   const navItems = [
     { id: 'dashboard', label: 'لوحة القيادة', icon: LayoutDashboard },
-    { id: 'view', label: 'استعراض البيانات', icon: TableIcon },
-    { id: 'clean', label: 'تنظيف البيانات', icon: Sparkles },
-    { id: 'export', label: 'تصدير التقرير', icon: Download },
-    { id: 'settings', label: 'الإعدادات', icon: Settings },
+    { id: 'view', label: 'استعراض الجداول', icon: TableIcon },
+    { id: 'clean', label: 'معالجة البيانات', icon: Settings2 },
+    { id: 'advanced', label: 'التحليل المتقدم', icon: TrendingUp },
+    { id: 'export', label: 'إصدار التقارير', icon: Download },
+    { id: 'settings', label: 'إعدادات النظام', icon: Settings },
   ];
 
   return (
@@ -828,8 +821,8 @@ export default function App() {
       )}>
         <div className="flex flex-col h-full py-8">
           <div className="flex items-center justify-center gap-3 mb-12 px-6">
-            <Cpu className="text-primary" size={32} />
-            <h1 className="text-2xl font-extrabold text-white tracking-tight">DataPro</h1>
+            <Database className="text-primary" size={32} />
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">Data System</h1>
           </div>
 
           <nav className="flex-1 space-y-1">
@@ -855,7 +848,7 @@ export default function App() {
 
           <div className="px-6 mt-auto">
             <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
-              <p className="text-xs text-slate-500 mb-2">المستخدم الحالي</p>
+              <p className="text-xs text-slate-500 mb-2">حساب المستخدم</p>
               <p className="text-sm font-bold text-white truncate">engzezo943@gmail.com</p>
             </div>
           </div>
@@ -868,8 +861,8 @@ export default function App() {
           <div className="fade-in space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <h2 className="text-3xl font-extrabold">General Show<span className="text-primary">ZEZO</span></h2>
-                <p className="text-text-muted mt-1">Data APP</p>
+                <h2 className="text-3xl font-extrabold">System <span className="text-primary">Analytics</span></h2>
+                <p className="text-text-muted mt-1">نظام متكامل لإدارة وتحليل البيانات</p>
               </div>
               <div className="flex items-center gap-3">
                 <button 
@@ -891,7 +884,7 @@ export default function App() {
                   onClick={() => document.getElementById('fileInput')?.click()}
                 >
                   <Upload size={20} />
-                  رفع ملف CSV
+                  استيراد CSV
                 </button>
               </div>
             </div>
@@ -899,10 +892,10 @@ export default function App() {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
-                { label: 'إجمالي الصفوف', value: stats.rows.toLocaleString(), color: 'border-slate-200' },
-                { label: 'عدد الميزات', value: stats.cols, color: 'border-primary' },
-                { label: 'الخلايا الفارغة', value: stats.nulls.toLocaleString(), color: 'border-amber-500' },
-                { label: 'الصفوف المكررة', value: stats.dups.toLocaleString(), color: 'border-red-500' },
+                { label: 'إجمالي السجلات', value: stats.rows.toLocaleString(), color: 'border-slate-200' },
+                { label: 'عدد الأعمدة', value: stats.cols, color: 'border-primary' },
+                { label: 'الخلايا المفقودة', value: stats.nulls.toLocaleString(), color: 'border-amber-500' },
+                { label: 'السجلات المكررة', value: stats.dups.toLocaleString(), color: 'border-red-500' },
               ].map((stat, i) => (
                 <div key={i} className={cn("premium-card text-center border-t-4", stat.color)}>
                   <p className="text-text-muted text-sm font-medium mb-1">{stat.label}</p>
@@ -911,14 +904,14 @@ export default function App() {
               ))}
             </div>
 
-            {/* Smart Alerts */}
+            {/* System Alerts */}
             {(alerts.length > 0 || monitoringAlerts.length > 0) && (
               <div className="grid grid-cols-1 gap-4">
                 {monitoringAlerts.map((alert, i) => (
                   <div key={`mon-${i}`} className="flex items-center gap-4 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-700 dark:text-red-400 animate-in slide-in-from-right-4">
                     <Activity size={24} />
                     <div>
-                      <p className="font-bold">تنبيه ذكي: مراقبة الأنماط</p>
+                      <p className="font-bold">تنبيه النظام: مراقبة جودة البيانات</p>
                       <p className="text-sm opacity-80">{alert}</p>
                     </div>
                   </div>
@@ -927,8 +920,8 @@ export default function App() {
                   <div key={i} className="flex items-center gap-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-amber-700 dark:text-amber-400 animate-in slide-in-from-right-4">
                     <AlertTriangle size={24} />
                     <div>
-                      <p className="font-bold">تنبيه ذكي: قيم شاذة (Outliers)</p>
-                      <p className="text-sm opacity-80">تم اكتشاف {alert.count} قيم غير منطقية في عمود <span className="font-mono font-bold">"{alert.col}"</span>. قد تؤثر هذه القيم على دقة التحليل.</p>
+                      <p className="font-bold">تنبيه إحصائي: قيم متطرفة (Outliers)</p>
+                      <p className="text-sm opacity-80">تم رصد {alert.count} قيمة تتجاوز النطاق الطبيعي في عمود <span className="font-mono font-bold">"{alert.col}"</span>.</p>
                     </div>
                   </div>
                 ))}
@@ -943,14 +936,14 @@ export default function App() {
                     <Activity className="text-primary" size={28} />
                   </div>
                   <div>
-                    <h4 className="text-xl font-bold">الربط المباشر (Live Connect)</h4>
-                    <p className="text-slate-400 text-sm">اربط بياناتك من Google Sheets أو أي رابط CSV</p>
+                    <h4 className="text-xl font-bold">الربط بقواعد البيانات الخارجية</h4>
+                    <p className="text-slate-400 text-sm">استيراد البيانات مباشرة عبر الروابط (Google Sheets, CSV URLs)</p>
                   </div>
                 </div>
                 <div className="flex w-full md:w-auto gap-2">
                   <input 
                     type="text" 
-                    placeholder="ضع رابط الملف هنا..."
+                    placeholder="أدخل رابط المصدر هنا..."
                     className="flex-1 md:w-80 bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
                     value={importUrl}
                     onChange={(e) => setImportUrl(e.target.value)}
@@ -964,7 +957,7 @@ export default function App() {
                     disabled={isImporting}
                   >
                     {isImporting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <CheckCircle2 size={20} />}
-                    ربط
+                    استيراد
                   </button>
                 </div>
               </div>
@@ -990,28 +983,28 @@ export default function App() {
                   if (file && file.name.endsWith('.csv')) {
                     handleFileUpload(file);
                   } else {
-                    showToast("يرجى رفع ملف CSV فقط", 'error');
+                    showToast("يرجى التأكد من استيراد ملف بصيغة CSV المتوافقة", 'error');
                   }
                 }}
               >
                 <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mb-6">
-                  <Upload className="text-primary" size={40} />
+                  <Database className="text-primary" size={40} />
                 </div>
-                <h3 className="text-2xl font-bold mb-2">ابدأ برفع ملفاتك</h3>
-                <p className="text-text-muted max-w-md text-center">قم بسحب وإفلات ملف CSV هنا أو اضغط للاختيار من جهازك لبدء التحليل الذكي</p>
+                <h3 className="text-2xl font-bold mb-2">إدراج مصدر البيانات</h3>
+                <p className="text-text-muted max-w-md text-center">قم بإفلات ملف CSV هنا، أو اضغط لتحديد الملف من جهازك وبدء عملية التحليل</p>
               </div>
             ) : (
               <div className="space-y-8">
-                {/* AI Insights Section */}
+                {/* Advanced Insights Section */}
                 <div className="premium-card bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                        <BrainCircuit className="text-primary" size={24} />
+                        <Lightbulb className="text-primary" size={24} />
                       </div>
                       <div>
-                        <h4 className="text-xl font-bold">تحليلات الذكاء الاصطناعي</h4>
-                        <p className="text-text-muted text-sm">استخدم Gemini لاكتشاف الأنماط المخفية</p>
+                        <h4 className="text-xl font-bold">التحليل الاستكشافي المتقدم</h4>
+                        <p className="text-text-muted text-sm">استخراج الأنماط والملخصات الإحصائية بشكل مباشر</p>
                       </div>
                     </div>
                     <button 
@@ -1019,13 +1012,13 @@ export default function App() {
                         "btn-premium flex items-center gap-2 px-8",
                         isAnalyzing && "opacity-50 cursor-not-allowed"
                       )}
-                      onClick={generateAIInsights}
+                      onClick={generateInsights}
                       disabled={isAnalyzing}
                     >
                       {isAnalyzing ? (
                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : <Sparkles size={18} />}
-                      {isAnalyzing ? "جاري التحليل..." : "توليد ملخص ذكي"}
+                      ) : <BarChart3 size={18} />}
+                      {isAnalyzing ? "جاري المعالجة..." : "إصدار التقرير الاستكشافي"}
                     </button>
                   </div>
 
@@ -1038,15 +1031,15 @@ export default function App() {
                   )}
                 </div>
 
-                {/* AI Chat Section */}
+                {/* Interactive Query Section */}
                 <div className="premium-card border-primary/20">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
                       <MessageSquare className="text-primary" size={24} />
                     </div>
                     <div>
-                      <h4 className="text-xl font-bold">دردش مع بياناتك</h4>
-                      <p className="text-text-muted text-sm">اسأل أي سؤال حول الملف المرفوع</p>
+                      <h4 className="text-xl font-bold">الاستعلام التفاعلي</h4>
+                      <p className="text-text-muted text-sm">أدخل استفساراتك للحصول على إحصائيات سريعة ومباشرة من الجدول</p>
                     </div>
                   </div>
 
@@ -1054,8 +1047,8 @@ export default function App() {
                     <div className="flex-1 overflow-y-auto space-y-4 mb-4 p-2">
                       {chatMessages.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
-                          <BrainCircuit size={48} className="mb-4" />
-                          <p>ابدأ بسؤال مثل: "ما هي أهم الملاحظات في هذه البيانات؟"</p>
+                          <Database size={48} className="mb-4" />
+                          <p>أدخل استعلامك هنا. مثال: "ما هو المعدل العام للمبيعات بناءً على البيانات؟"</p>
                         </div>
                       )}
                       {chatMessages.map((msg, i) => (
@@ -1079,15 +1072,15 @@ export default function App() {
                     <div className="flex gap-2">
                       <input 
                         type="text" 
-                        placeholder="اكتب سؤالك هنا..."
+                        placeholder="اكتب استعلامك التحليلي هنا..."
                         className="flex-1 bg-card-bg border border-border rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary"
                         value={userQuery}
                         onChange={(e) => setUserQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && askAIChat()}
+                        onKeyDown={(e) => e.key === 'Enter' && executeDataQuery()}
                       />
                       <button 
                         className="p-2 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors disabled:opacity-50"
-                        onClick={askAIChat}
+                        onClick={executeDataQuery}
                         disabled={isChatting || !userQuery.trim()}
                       >
                         <Send size={20} />
@@ -1104,8 +1097,8 @@ export default function App() {
                         <Layers className="text-amber-500" size={24} />
                       </div>
                       <div>
-                        <h4 className="text-xl font-bold">مصفوفة الارتباط</h4>
-                        <p className="text-text-muted text-sm">اكتشف العلاقات بين المتغيرات الرقمية</p>
+                        <h4 className="text-xl font-bold">مصفوفة الارتباط الإحصائي</h4>
+                        <p className="text-text-muted text-sm">مراجعة المعاملات ومستوى الارتباط بين المتغيرات الرقمية</p>
                       </div>
                     </div>
                     <button 
@@ -1115,7 +1108,7 @@ export default function App() {
                       )}
                       onClick={() => setShowCorrelation(!showCorrelation)}
                     >
-                      {showCorrelation ? "إخفاء المصفوفة" : "عرض المصفوفة"}
+                      {showCorrelation ? "إخفاء المصفوفة" : "توليد المصفوفة"}
                     </button>
                   </div>
 
@@ -1129,20 +1122,20 @@ export default function App() {
                 <div className="premium-card">
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold">نوع الرسم</label>
+                    <label className="text-sm font-bold">المخطط البياني</label>
                     <select 
                       value={chartType}
                       onChange={(e) => setChartType(e.target.value)}
                       className="w-full bg-bg-body border border-border rounded-xl p-2.5 focus:ring-2 focus:ring-primary outline-none"
                     >
-                      <option value="scatter3d">3D Scatter</option>
-                      <option value="bar">Bar Chart</option>
-                      <option value="line">Line Chart</option>
-                      <option value="histogram">Histogram</option>
+                      <option value="scatter3d">مخطط الانتشار ثلاثي الأبعاد</option>
+                      <option value="bar">المخطط الشريطي (Bar)</option>
+                      <option value="line">المخطط الخطي (Line)</option>
+                      <option value="histogram">المدرج التكراري (Histogram)</option>
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold">محور X</label>
+                    <label className="text-sm font-bold">المحور السيني (X)</label>
                     <select 
                       value={xCol}
                       onChange={(e) => setXCol(e.target.value)}
@@ -1152,7 +1145,7 @@ export default function App() {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold">محور Y</label>
+                    <label className="text-sm font-bold">المحور الصادي (Y)</label>
                     <select 
                       value={yCol}
                       onChange={(e) => setYCol(e.target.value)}
@@ -1162,7 +1155,7 @@ export default function App() {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold">محور Z (3D)</label>
+                    <label className="text-sm font-bold">المحور العيني (Z)</label>
                     <select 
                       value={zCol}
                       onChange={(e) => setZCol(e.target.value)}
@@ -1185,8 +1178,8 @@ export default function App() {
             {rawData.length === 0 ? (
               <div className="premium-card py-20 flex flex-col items-center justify-center text-center space-y-4">
                 <TableIcon size={64} className="text-text-muted opacity-20" />
-                <h3 className="text-xl font-bold">لا توجد بيانات لعرضها</h3>
-                <p className="text-text-muted">يرجى رفع ملف CSV من لوحة القيادة أولاً</p>
+                <h3 className="text-xl font-bold">سجلات البيانات فارغة</h3>
+                <p className="text-text-muted">قم برفع البيانات من لوحة القيادة أولاً ليتم عرضها هنا</p>
                 <button 
                   className="btn-premium"
                   onClick={() => setActiveTab('dashboard')}
@@ -1197,14 +1190,14 @@ export default function App() {
             ) : (
               <div className="space-y-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <h3 className="text-2xl font-bold">استعراض البيانات</h3>
+                  <h3 className="text-2xl font-bold">استعراض السجلات وجداول البيانات</h3>
                   <div className="flex gap-2">
                     <button onClick={() => setFilters({})} className="px-4 py-2 text-sm font-bold text-text-muted hover:text-primary transition-colors">
-                      مسح الفلاتر
+                      إلغاء التصفيات
                     </button>
                     <button onClick={exportData} className="btn-premium flex items-center gap-2">
                       <Download size={18} />
-                      تصدير CSV
+                      تصدير كـ CSV
                     </button>
                   </div>
                 </div>
@@ -1213,8 +1206,8 @@ export default function App() {
                 <div className="premium-card overflow-x-auto">
                   <div className="flex items-center gap-6 min-w-max">
                     <div className="flex items-center gap-2 text-primary font-bold">
-                      <Search size={20} />
-                      <span>الفلاتر الذكية:</span>
+                      <Filter size={20} />
+                      <span>عوامل التصفية:</span>
                     </div>
                     {columns.slice(0, 5).map(col => (
                       <div key={col} className="space-y-1">
@@ -1234,12 +1227,12 @@ export default function App() {
 
                 <div className="premium-card overflow-hidden">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                    <h4 className="text-xl font-bold">معاينة الجدول</h4>
+                    <h4 className="text-xl font-bold">بيانات الجدول المعتمدة</h4>
                     <div className="relative w-full md:w-72">
                       <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
                       <input 
                         type="text" 
-                        placeholder="بحث في البيانات..."
+                        placeholder="البحث ضمن السجلات..."
                         className="w-full bg-bg-body border border-border rounded-xl pr-10 pl-4 py-2.5 outline-none focus:ring-2 focus:ring-primary"
                         value={searchQuery}
                         onChange={(e) => {
@@ -1338,7 +1331,7 @@ export default function App() {
               <div className="mt-12 space-y-6">
                 <div className="flex items-center gap-3">
                   <BarChart3 className="text-primary" size={24} />
-                  <h4 className="text-xl font-bold">تحليل الأعمدة (Profiling)</h4>
+                  <h4 className="text-xl font-bold">ملخص وهيكلة الأعمدة</h4>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {columnStats.map((col, i) => (
@@ -1352,7 +1345,7 @@ export default function App() {
                           "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
                           col.type === 'number' ? "bg-primary/10 text-primary" : "bg-slate-200 text-slate-600"
                         )}>
-                          {col.type === 'number' ? 'رقمي' : 'نصي'}
+                          {col.type === 'number' ? 'قيمة رقمية' : 'نص'}
                         </span>
                       </div>
                       
@@ -1374,7 +1367,7 @@ export default function App() {
                       ) : (
                         <div className="flex items-center gap-2 text-text-muted text-sm py-4">
                           <AlertTriangle size={16} />
-                          <span>بيانات نصية - لا توجد إحصائيات رقمية</span>
+                          <span>بيانات غير رقمية - إحصائيات غير متاحة</span>
                         </div>
                       )}
                     </div>
@@ -1391,8 +1384,8 @@ export default function App() {
             {rawData.length === 0 ? (
               <div className="premium-card py-20 flex flex-col items-center justify-center text-center space-y-4">
                 <TrendingUp size={64} className="text-text-muted opacity-20" />
-                <h3 className="text-xl font-bold">لا توجد بيانات للتحليل المتقدم</h3>
-                <p className="text-text-muted">يرجى رفع ملف CSV أولاً</p>
+                <h3 className="text-xl font-bold">لا يوجد مدخلات للتحليل المتقدم</h3>
+                <p className="text-text-muted">يرجى رفع ملف وتوفير سجلات للمنظومة أولاً</p>
               </div>
             ) : (
               <div className="space-y-8">
@@ -1404,8 +1397,8 @@ export default function App() {
                         <Activity className="text-indigo-500" size={24} />
                       </div>
                       <div>
-                        <h4 className="text-xl font-bold">التحليل التنبؤي (Predictive AI)</h4>
-                        <p className="text-text-muted text-sm">توقع الاتجاهات والمخاطر المستقبلية</p>
+                        <h4 className="text-xl font-bold">دراسة الاتجاهات والتحليل التنبؤي</h4>
+                        <p className="text-text-muted text-sm">حساب التوقعات المستقبلية استناداً إلى المؤشرات الحالية</p>
                       </div>
                     </div>
                     <button 
@@ -1413,11 +1406,11 @@ export default function App() {
                         "btn-premium bg-indigo-600 hover:bg-indigo-700 flex items-center gap-2",
                         isPredicting && "opacity-50"
                       )}
-                      onClick={generatePrediction}
+                      onClick={runPredictiveAnalysis}
                       disabled={isPredicting}
                     >
-                      {isPredicting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Sparkles size={18} />}
-                      توليد التوقعات
+                      {isPredicting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <LineChart size={18} />}
+                      إجراء التحليل التنبؤي
                     </button>
                   </div>
                   {prediction && (
@@ -1436,39 +1429,39 @@ export default function App() {
                       <PivotIcon className="text-emerald-500" size={24} />
                     </div>
                     <div>
-                      <h4 className="text-xl font-bold">الجداول المحورية (Pivot Tables)</h4>
-                      <p className="text-text-muted text-sm">لخص بياناتك بذكاء</p>
+                      <h4 className="text-xl font-bold">الجداول المحورية وتقاطعات البيانات</h4>
+                      <p className="text-text-muted text-sm">استخلاص وتلخيص المعلومات بشكل جدولي ديناميكي</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                     <div className="space-y-2">
-                      <label className="text-sm font-bold">الصفوف (Rows)</label>
+                      <label className="text-sm font-bold">محور الصفوف</label>
                       <select value={pivotRow} onChange={(e) => setPivotRow(e.target.value)} className="w-full bg-bg-body border border-border rounded-xl p-2.5 outline-none">
-                        <option value="">اختر...</option>
+                        <option value="">تحديد السمة...</option>
                         {columns.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-bold">الأعمدة (Columns)</label>
+                      <label className="text-sm font-bold">محور الأعمدة</label>
                       <select value={pivotCol} onChange={(e) => setPivotCol(e.target.value)} className="w-full bg-bg-body border border-border rounded-xl p-2.5 outline-none">
-                        <option value="">اختر...</option>
+                        <option value="">تحديد السمة...</option>
                         {columns.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-bold">القيم (Values)</label>
+                      <label className="text-sm font-bold">القيم المحسوبة</label>
                       <select value={pivotVal} onChange={(e) => setPivotVal(e.target.value)} className="w-full bg-bg-body border border-border rounded-xl p-2.5 outline-none">
-                        <option value="">اختر...</option>
+                        <option value="">تحديد الحقل...</option>
                         {columns.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-bold">العملية</label>
+                      <label className="text-sm font-bold">الدالة الرياضية</label>
                       <select value={pivotAgg} onChange={(e: any) => setPivotAgg(e.target.value)} className="w-full bg-bg-body border border-border rounded-xl p-2.5 outline-none">
-                        <option value="sum">إجمالي (Sum)</option>
-                        <option value="count">عدد (Count)</option>
-                        <option value="avg">متوسط (Average)</option>
+                        <option value="sum">المجموع (Sum)</option>
+                        <option value="count">العدد (Count)</option>
+                        <option value="avg">المتوسط (Average)</option>
                       </select>
                     </div>
                   </div>
@@ -1506,14 +1499,14 @@ export default function App() {
                       <GitMerge className="text-orange-500" size={24} />
                     </div>
                     <div>
-                      <h4 className="text-xl font-bold">دمج الملفات (Data Merging)</h4>
-                      <p className="text-text-muted text-sm">اربط ملفين معاً بناءً على مفتاح مشترك</p>
+                      <h4 className="text-xl font-bold">ربط ودمج الجداول</h4>
+                      <p className="text-text-muted text-sm">دمج ملفين بناءً على المعرفات المشتركة</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-4">
-                      <h5 className="font-bold">1. رفع الملف الثاني</h5>
+                      <h5 className="font-bold">المرحلة الأولى: إرفاق الجدول الإضافي</h5>
                       <div className="relative group">
                         <input 
                           type="file" 
@@ -1523,31 +1516,31 @@ export default function App() {
                         />
                         <div className="p-8 border-2 border-dashed border-border rounded-2xl group-hover:border-orange-500 group-hover:bg-orange-500/5 transition-all flex flex-col items-center justify-center text-center">
                           <Upload className="text-orange-500 mb-2" size={32} />
-                          <p className="text-sm font-bold">اضغط لرفع الملف الثاني</p>
-                          <p className="text-xs text-text-muted mt-1">CSV فقط</p>
+                          <p className="text-sm font-bold">حدد الملف للإضافة</p>
+                          <p className="text-xs text-text-muted mt-1">تنسيق CSV المعتمد فقط</p>
                         </div>
                       </div>
                       {secondData.length > 0 && (
                         <div className="flex items-center gap-2 text-sm text-green-500 font-bold bg-green-500/10 p-2 rounded-lg">
                           <CheckCircle2 size={16} />
-                          تم تحميل {secondData.length} صف
+                          تم إدراج {secondData.length} سجلاً بنجاح
                         </div>
                       )}
                     </div>
                     <div className="space-y-4">
-                      <h5 className="font-bold">2. إعدادات الربط</h5>
+                      <h5 className="font-bold">المرحلة الثانية: تخصيص محددات الدمج</h5>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <label className="text-xs font-bold">مفتاح الملف الأول</label>
+                          <label className="text-xs font-bold">حقل الجدول الرئيسي</label>
                           <select value={mergeKey1} onChange={(e) => setMergeKey1(e.target.value)} className="w-full bg-bg-body border border-border rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-orange-500">
-                            <option value="">اختر...</option>
+                            <option value="">تحديد...</option>
                             {columns.map(c => <option key={c} value={c}>{c}</option>)}
                           </select>
                         </div>
                         <div className="space-y-2">
-                          <label className="text-xs font-bold">مفتاح الملف الثاني</label>
+                          <label className="text-xs font-bold">حقل الجدول المرفق</label>
                           <select value={mergeKey2} onChange={(e) => setMergeKey2(e.target.value)} className="w-full bg-bg-body border border-border rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-orange-500">
-                            <option value="">اختر...</option>
+                            <option value="">تحديد...</option>
                             {secondCols.map(c => <option key={c} value={c}>{c}</option>)}
                           </select>
                         </div>
@@ -1557,7 +1550,7 @@ export default function App() {
                         className="w-full py-4 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2"
                       >
                         <GitMerge size={20} />
-                        دمج البيانات الآن
+                        تطبيق إجراء الدمج
                       </button>
                     </div>
                   </div>
@@ -1571,9 +1564,9 @@ export default function App() {
           <div className="fade-in space-y-8">
             {rawData.length === 0 ? (
               <div className="premium-card py-20 flex flex-col items-center justify-center text-center space-y-4">
-                <Sparkles size={64} className="text-text-muted opacity-20" />
-                <h3 className="text-xl font-bold">لا توجد بيانات لتنظيفها</h3>
-                <p className="text-text-muted">يرجى رفع ملف CSV للبدء في عمليات التنظيف</p>
+                <Settings2 size={64} className="text-text-muted opacity-20" />
+                <h3 className="text-xl font-bold">لم يتم رصد جداول قابلة للمعالجة</h3>
+                <p className="text-text-muted">الرجاء العودة وتوفير السجلات المراد هيكلتها</p>
                 <button 
                   className="btn-premium"
                   onClick={() => setActiveTab('dashboard')}
@@ -1585,34 +1578,34 @@ export default function App() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="premium-card space-y-6">
                 <h5 className="text-xl font-bold flex items-center gap-2">
-                  <Trash2 className="text-red-500" size={20} />
-                  إجراءات سريعة
+                  <Filter className="text-primary" size={20} />
+                  المعالجة والتهيئة
                 </h5>
                 <div className="space-y-3">
                   <button 
                     className={cn(
                       "w-full py-4 px-4 rounded-xl bg-primary text-white font-bold flex items-center justify-center gap-2 hover:bg-primary-dark transition-all shadow-lg",
-                      isMagicCleaning && "opacity-50"
+                      isAutoCleaning && "opacity-50"
                     )}
-                    onClick={magicClean}
-                    disabled={isMagicCleaning}
+                    onClick={autoClean}
+                    disabled={isAutoCleaning}
                   >
-                    {isMagicCleaning ? (
+                    {isAutoCleaning ? (
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : <Wand2 size={20} />}
-                    التنظيف السحري (AI)
+                    ) : <Settings2 size={20} />}
+                    تنفيذ التنسيق الآلي الموحد
                   </button>
                   <button 
                     className="w-full py-3 px-4 rounded-xl border-2 border-red-500/20 text-red-500 font-bold hover:bg-red-500 hover:text-white transition-all"
                     onClick={cleanDups}
                   >
-                    حذف الصفوف المكررة
+                    إزالة السجلات المكررة
                   </button>
                   <button 
                     className="w-full py-3 px-4 rounded-xl border-2 border-red-500/20 text-red-500 font-bold hover:bg-red-500 hover:text-white transition-all"
                     onClick={cleanNulls}
                   >
-                    حذف الصفوف الفارغة
+                    استبعاد السجلات المفقودة بالكامل
                   </button>
                 </div>
               </div>
@@ -1620,11 +1613,11 @@ export default function App() {
               <div className="lg:col-span-2 premium-card space-y-6">
                 <h5 className="text-xl font-bold flex items-center gap-2">
                   <CheckCircle2 className="text-green-500" size={20} />
-                  تعبئة الخلايا الفارغة (Imputation)
+                  استيفاء وتعبئة البيانات (Data Imputation)
                 </h5>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold">اختر العمود</label>
+                    <label className="text-sm font-bold">تحديد العمود المستهدف</label>
                     <select 
                       value={fillCol}
                       onChange={(e) => setFillCol(e.target.value)}
@@ -1634,25 +1627,25 @@ export default function App() {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold">الطريقة</label>
+                    <label className="text-sm font-bold">آلية الاستيفاء</label>
                     <select 
                       value={fillMethod}
                       onChange={(e) => setFillMethod(e.target.value)}
                       className="w-full bg-bg-body border border-border rounded-xl p-3 outline-none"
                     >
-                      <option value="mean">المتوسط الحسابي (للأرقام)</option>
-                      <option value="median">الوسيط (للأرقام)</option>
-                      <option value="zero">صفر</option>
-                      <option value="custom">قيمة مخصصة</option>
+                      <option value="mean">المتوسط الحسابي (للقيم الرقمية)</option>
+                      <option value="median">الوسيط (للقيم الرقمية)</option>
+                      <option value="zero">تعويض بصفر</option>
+                      <option value="custom">إدخال قيمة تعويضية ثابتة</option>
                     </select>
                   </div>
                   {fillMethod === 'custom' && (
                     <div className="space-y-2">
-                      <label className="text-sm font-bold">القيمة المخصصة</label>
+                      <label className="text-sm font-bold">القيمة التعويضية</label>
                       <input 
                         type="text" 
                         className="w-full bg-bg-body border border-border rounded-xl p-3 outline-none"
-                        placeholder="أدخل القيمة هنا..."
+                        placeholder="ضع القيمة المطلوبة..."
                         value={customVal}
                         onChange={(e) => setCustomVal(e.target.value)}
                       />
@@ -1663,30 +1656,30 @@ export default function App() {
                       className="btn-premium px-12"
                       onClick={fillValues}
                     >
-                      تطبيق
+                      تطبيق القاعدة
                     </button>
                   </div>
                 </div>
               </div>
 
               {/* Advanced Engineering Section */}
-              <div className="premium-card space-y-8">
+              <div className="premium-card space-y-8 col-span-1 lg:col-span-3">
                 <h5 className="text-xl font-bold flex items-center gap-2">
                   <Cpu className="text-primary" size={20} />
-                  هندسة البيانات المتقدمة
+                  هندسة المتغيرات وتهيئة البنية
                 </h5>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   {/* Type Conversion */}
                   <div className="space-y-4">
-                    <p className="font-bold text-sm text-text-muted">تحويل أنواع البيانات</p>
+                    <p className="font-bold text-sm text-text-muted">التحكم في أنماط الحقول الأساسية</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <select 
                         value={convertCol}
                         onChange={(e) => setConvertCol(e.target.value)}
                         className="bg-bg-body border border-border rounded-xl p-3 outline-none"
                       >
-                        <option value="">اختر العمود...</option>
+                        <option value="">انتقاء الحقل...</option>
                         {columns.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                       <select 
@@ -1694,25 +1687,25 @@ export default function App() {
                         onChange={(e) => setConvertType(e.target.value)}
                         className="bg-bg-body border border-border rounded-xl p-3 outline-none"
                       >
-                        <option value="number">رقم (Number)</option>
-                        <option value="string">نص (String)</option>
+                        <option value="number">تنسيق رقمي</option>
+                        <option value="string">تنسيق نصي</option>
                       </select>
                     </div>
                     <button 
                       className="w-full py-3 bg-primary/10 text-primary font-bold rounded-xl hover:bg-primary hover:text-white transition-all"
                       onClick={convertColumnType}
                     >
-                      تحويل النوع
+                      اعتماد تغيير النوع
                     </button>
                   </div>
 
                   {/* Feature Engineering */}
                   <div className="space-y-4">
-                    <p className="font-bold text-sm text-text-muted">إنشاء ميزة جديدة (Feature Engineering)</p>
+                    <p className="font-bold text-sm text-text-muted">توليد متغيرات واشتقاق ميزات إضافية</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <input 
                         type="text" 
-                        placeholder="اسم العمود الجديد..."
+                        placeholder="تعريف مسمى الميزة..."
                         className="bg-bg-body border border-border rounded-xl p-3 outline-none"
                         value={newColName}
                         onChange={(e) => setNewColName(e.target.value)}
@@ -1722,17 +1715,17 @@ export default function App() {
                         onChange={(e) => setOperation(e.target.value)}
                         className="bg-bg-body border border-border rounded-xl p-3 outline-none"
                       >
-                        <option value="add">جمع (+)</option>
-                        <option value="sub">طرح (-)</option>
-                        <option value="mul">ضرب (×)</option>
-                        <option value="div">قسمة (÷)</option>
+                        <option value="add">عملية الجمع (+)</option>
+                        <option value="sub">عملية الطرح (-)</option>
+                        <option value="mul">عملية الضرب (×)</option>
+                        <option value="div">عملية القسمة (÷)</option>
                       </select>
                       <select 
                         value={opCol1}
                         onChange={(e) => setOpCol1(e.target.value)}
                         className="bg-bg-body border border-border rounded-xl p-3 outline-none"
                       >
-                        <option value="">العمود الأول...</option>
+                        <option value="">المتغير الأولي...</option>
                         {columns.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                       <select 
@@ -1740,7 +1733,7 @@ export default function App() {
                         onChange={(e) => setOpCol2(e.target.value)}
                         className="bg-bg-body border border-border rounded-xl p-3 outline-none"
                       >
-                        <option value="">العمود الثاني...</option>
+                        <option value="">المتغير الثاني...</option>
                         {columns.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
@@ -1748,7 +1741,7 @@ export default function App() {
                       className="w-full py-3 bg-primary text-white font-bold rounded-xl hover:shadow-lg transition-all"
                       onClick={createFeature}
                     >
-                      إنشاء العمود
+                      إضافة الميزة للنظام
                     </button>
                   </div>
                 </div>
@@ -1763,13 +1756,13 @@ export default function App() {
             {rawData.length === 0 ? (
               <div className="premium-card max-w-2xl w-full text-center py-16 space-y-8">
                 <Download size={64} className="text-text-muted opacity-20 mx-auto" />
-                <h3 className="text-xl font-bold">لا توجد بيانات للتصدير</h3>
-                <p className="text-text-muted">قم بمعالجة بياناتك أولاً لتتمكن من تحميلها</p>
+                <h3 className="text-xl font-bold">لا يوجد مدخلات للإصدار</h3>
+                <p className="text-text-muted">الرجاء تنفيذ خطوات المعالجة والتحليل قبل طلب التقارير</p>
                 <button 
                   className="btn-premium"
                   onClick={() => setActiveTab('dashboard')}
                 >
-                  الذهاب للوحة القيادة
+                  العودة للشاشة الرئيسية
                 </button>
               </div>
             ) : (
@@ -1778,28 +1771,28 @@ export default function App() {
                 <Download className="text-primary" size={48} />
               </div>
               <div className="space-y-2">
-                <h3 className="text-3xl font-black">جاهز للتحميل؟</h3>
-                <p className="text-text-muted text-lg">يمكنك تصدير البيانات المعدلة الآن بصيغة CSV المتوافقة مع الإكسل واللغة العربية.</p>
+                <h3 className="text-3xl font-black">خيارات إصدار المخرجات</h3>
+                <p className="text-text-muted text-lg">البيانات والمعلومات أصبحت مُعدة للاستخراج ضمن أنماط متوافقة مع أنظمة العمل المختلفة.</p>
               </div>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
                 <button 
                   className="btn-premium px-10 py-4 text-lg w-full sm:w-auto"
                   onClick={exportData}
                 >
-                  تحميل الملف (CSV)
+                  إصدار الجداول (CSV)
                 </button>
                 <button 
                   className="px-10 py-4 text-lg font-bold border-2 border-primary text-primary rounded-xl hover:bg-primary hover:text-white transition-all w-full sm:w-auto"
                   onClick={exportPlot}
                 >
-                  تحميل الرسم (PNG)
+                  حفظ الرسم البياني (PNG)
                 </button>
                 <button 
                   className="px-10 py-4 text-lg font-bold bg-slate-800 text-white rounded-xl hover:bg-slate-900 transition-all w-full sm:w-auto flex items-center justify-center gap-2"
                   onClick={exportToPDF}
                 >
                   <FileText size={20} />
-                  تصدير تقرير PDF
+                  وثيقة التقرير (PDF)
                 </button>
               </div>
             </div>
@@ -1810,7 +1803,7 @@ export default function App() {
         {activeTab === 'settings' && (
           <div className="fade-in space-y-8">
             <div className="premium-card space-y-8">
-              <h5 className="text-xl font-bold">تخصيص الواجهة</h5>
+              <h5 className="text-xl font-bold">إعدادات المنصة وإدارة المظهر</h5>
               
               <div className="flex items-center justify-between p-6 bg-bg-body rounded-2xl border border-border">
                 <div className="flex items-center gap-4">
@@ -1818,8 +1811,8 @@ export default function App() {
                     {theme === 'dark' ? <Moon className="text-primary" /> : <Sun className="text-amber-500" />}
                   </div>
                   <div>
-                    <p className="font-bold text-lg">الوضع الليلي (Dark Mode)</p>
-                    <p className="text-text-muted text-sm">تغيير مظهر التطبيق للراحة البصرية</p>
+                    <p className="font-bold text-lg">الوضع الليلي المتوافق (Dark Mode)</p>
+                    <p className="text-text-muted text-sm">ضبط وتخصيص هوية التطبيق لتلائم الراحة البصرية</p>
                   </div>
                 </div>
                 <button 
@@ -1837,12 +1830,12 @@ export default function App() {
               </div>
 
               <div className="p-6 bg-primary/5 rounded-2xl border border-primary/10">
-                <p className="font-bold text-primary mb-2">معلومات النظام</p>
+                <p className="font-bold text-primary mb-2">السجلات والنظام</p>
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <p className="text-text-muted">الإصدار:</p>
-                  <p className="font-mono">v2.4.0-premium</p>
-                  <p className="text-text-muted">آخر تحديث:</p>
-                  <p className="font-mono">10 أبريل 2026</p>
+                  <p className="text-text-muted">نسخة التطبيق:</p>
+                  <p className="font-mono">v2.4.0-Enterprise</p>
+                  <p className="text-text-muted">حالة التحديث المعياري:</p>
+                  <p className="font-mono">محدّث ومفعل - أحدث توافق</p>
                 </div>
               </div>
             </div>
